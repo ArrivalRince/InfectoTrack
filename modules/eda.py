@@ -1,154 +1,215 @@
 import streamlit as st
-import plotly.express as px
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
-from utils.data_loader import load_data
+import plotly.express as px
+import os
 
 def show():
-    st.header("📊 Exploratory Data Analysis (EDA)")
 
+    st.header("📊 EDA Data Mentah (Tanpa Cleaning)")
 
+    # ================================
     # LOAD DATA
+    # ================================
+    base_path = os.path.dirname(os.path.dirname(__file__))
 
-    df = load_data()
+    file_path = os.path.join(
+        base_path,
+        "data",
+        "Disease by Province and Type of Disease, 2025.csv"
+    )
 
-    df = df.rename(columns={
-        "TBC Case Detection Rate": "TBC_CDR",
-        "TBC Success Rate": "TBC_SR",
-        "Jumlah Kasus Penyakit - HIV/AIDS Kasus Baru": "AIDS",
-        "New Case Detection Rate of Leprosy per 100,000 Population": "Kusta",
-        "Annual Parasite Incidence per 1,000 Population": "Malaria",
-        "DHF Incidence Rate per 100,000 Population": "DBD",
-        "Cluster": "cluster"
-    })
+    if not os.path.exists(file_path):
+        st.error("File tidak ditemukan! Pastikan ada di folder /data")
+        return
 
-    features = ["TBC_CDR", "TBC_SR", "AIDS", "Kusta", "Malaria", "DBD"]
+    df = pd.read_csv(file_path)
 
+    # ================================
+    # DATA RAW
+    # ================================
+    st.subheader("📌 Data Mentah (Raw)")
+    st.dataframe(df)
 
+    # ================================
+    # INFORMASI DATASET
+    # ================================
+    st.subheader("📌 Informasi Dataset")
+
+    st.write("Jumlah baris:", df.shape[0])
+    st.write("Jumlah kolom:", df.shape[1])
+
+    st.write("Tipe data:")
+    st.write(df.dtypes)
+
+    # ================================
+    # DETEKSI MISSING VALUE
+    # ================================
+    st.subheader("📌 Deteksi Missing Value")
+
+    missing_real = df.isna().sum()
+
+    missing_symbol = (
+        (df == "–").sum() +
+        (df == "-").sum()
+    )
+
+    missing_total = missing_real + missing_symbol
+
+    fig_missing = px.bar(
+        x=missing_total.index,
+        y=missing_total.values,
+        labels={
+            "x": "Kolom",
+            "y": "Jumlah Missing"
+        },
+        template="plotly_dark"
+    )
+
+    st.plotly_chart(fig_missing, use_container_width=True)
+
+    st.info(
+        "Missing mencakup NaN, None, simbol '–', dan '-'."
+    )
+
+    # ================================
+    # PILIH KOLOM
+    # ================================
+    st.subheader("📌 Visualisasi Data")
+
+    selected_col = st.selectbox(
+        "Pilih Kolom",
+        df.columns
+    )
+
+    # ================================
+    # KONVERSI SEMENTARA
+    # ================================
+    numeric_data = pd.to_numeric(
+        df[selected_col],
+        errors='coerce'
+    )
+
+    # ================================
     # HISTOGRAM
-    st.subheader("Histogram Distribusi")
+    # ================================
+    st.subheader("📊 Histogram Distribusi Data")
 
-    selected_feature = st.selectbox("Pilih Variabel", features)
+    try:
 
-    fig_hist = px.histogram(
-        df,
-        x=selected_feature,
-        nbins=20,
-        template="plotly_dark"
-    )
+        fig_hist = px.histogram(
+            x=numeric_data,
+            nbins=20,
+            template="plotly_dark",
+            labels={
+                "x": selected_col,
+                "y": "Jumlah Data"
+            }
+        )
 
-    # ubah label axis
-    fig_hist.update_layout(
-        xaxis_title=f"Nilai {selected_feature}",
-        yaxis_title="Jumlah Provinsi",
-        bargap=0.1
-    )
+        st.plotly_chart(
+            fig_hist,
+            use_container_width=True
+        )
 
-    st.plotly_chart(fig_hist, use_container_width=True)
+    except:
+        st.error("Kolom tidak dapat divisualisasikan.")
 
-    
-    # BOXPLOT
-    
-    st.subheader("Boxplot (Sebelum vs Sesudah Normalisasi)")
+    # ================================
+    # DETEKSI OUTLIER
+    # ================================
+    st.subheader("🚨 Visualisasi Outlier")
 
-    scaler = MinMaxScaler()
-    df_scaled = df.copy()
-    df_scaled[features] = scaler.fit_transform(df[features])
+    try:
 
-    col1, col2 = st.columns(2)
+        # IQR
+        Q1 = numeric_data.quantile(0.25)
+        Q3 = numeric_data.quantile(0.75)
 
-    with col1:
-        fig_before = px.box(
-            df,
-            y=selected_feature,
-            title="Before Scaling",
+        IQR = Q3 - Q1
+
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+
+        # Copy dataframe
+        df_outlier = df.copy()
+
+        df_outlier["value_numeric"] = numeric_data
+
+        # Label outlier
+        df_outlier["Kategori"] = df_outlier[
+            "value_numeric"
+        ].apply(
+            lambda x:
+            "Outlier"
+            if pd.notnull(x)
+            and (
+                x < lower_bound
+                or x > upper_bound
+            )
+            else "Normal"
+        )
+
+        # Scatter plot
+        fig_scatter = px.scatter(
+            df_outlier,
+            x="Provinsi",
+            y="value_numeric",
+            color="Kategori",
+            hover_data=[
+                "Provinsi",
+                "value_numeric"
+            ],
             template="plotly_dark"
         )
-        st.plotly_chart(fig_before, use_container_width=True)
 
-    with col2:
-        fig_after = px.box(
-            df_scaled,
-            y=selected_feature,
-            title="After MinMax Scaling",
-            template="plotly_dark"
+        fig_scatter.update_layout(
+            xaxis_title="Provinsi",
+            yaxis_title=selected_col,
+            xaxis_tickangle=-45
         )
-        st.plotly_chart(fig_after, use_container_width=True)
 
-    
-    # HEATMAP
-    
-    st.subheader("Heatmap Korelasi")
+        st.plotly_chart(
+            fig_scatter,
+            use_container_width=True
+        )
 
-    corr = df[features].corr()
+        # ================================
+        # TABEL OUTLIER
+        # ================================
+        st.subheader("📌 Data Outlier")
 
-    fig_corr = px.imshow(
-        corr,
-        text_auto=True,
-        color_continuous_scale="RdBu_r",
-        template="plotly_dark"
-    )
-    st.plotly_chart(fig_corr, use_container_width=True)
+        outlier_only = df_outlier[
+            df_outlier["Kategori"] == "Outlier"
+        ]
 
+        if len(outlier_only) > 0:
 
-    # SCATTER
+            st.dataframe(
+                outlier_only[
+                    [
+                        "Provinsi",
+                        "value_numeric"
+                    ]
+                ].rename(
+                    columns={
+                        "value_numeric": selected_col
+                    }
+                )
+            )
 
-    st.subheader("Scatter Plot Antar Variabel")
+        else:
+            st.success(
+                "Tidak ditemukan outlier."
+            )
 
-    col1, col2 = st.columns(2)
+    except:
+        st.error(
+            "Kolom tidak dapat dianalisis."
+        )
 
-    with col1:
-        x_axis = st.selectbox("Sumbu X", features)
+    st.subheader("📌 Catatan")
 
-    with col2:
-        y_axis = st.selectbox("Sumbu Y", features, index=1)
+    st.markdown("""
+    ⚠️ Dataset masih dalam kondisi mentah
 
-    fig_scatter = px.scatter(
-        df,
-        x=x_axis,
-        y=y_axis,
-        color=df["cluster"].astype(str),
-        hover_name="Provinsi",
-        template="plotly_dark"
-    )
-
-    fig_scatter.update_layout(
-        xaxis_title=f"Nilai {x_axis}",
-        yaxis_title=f"Nilai {y_axis}",
-        legend_title="Cluster"
-    )
-
-    st.plotly_chart(fig_scatter, use_container_width=True)
-
-
-    # DATA TABLE + SEARCH + HIGHLIGHT
-
-    st.subheader("Dataset Lengkap")
-
-    search = st.text_input("🔍 Cari Provinsi")
-
-    def highlight_row(row):
-        if search and search.lower() in row["Provinsi"].lower():
-            return ["background-color: #ff4d4f; color: white; font-weight: bold"] * len(row)
-        return [""] * len(row)
-
-    styled_df = df.style.apply(highlight_row, axis=1)
-
-    st.dataframe(styled_df, use_container_width=True)
-
-    # Download CSV
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "📥 Download CSV",
-        csv,
-        "dataset_clustering.csv",
-        "text/csv"
-    )
-
-
-    # RATA-RATA PER CLUSTER
-
-    st.subheader("Rata-rata Tiap Cluster")
-
-    cluster_mean = df.groupby("cluster")[features].mean().round(2)
-    st.dataframe(cluster_mean, use_container_width=True)
+    """)
