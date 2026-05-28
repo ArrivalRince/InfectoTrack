@@ -13,10 +13,9 @@ def show():
     st.header("🔵 Analisis Clustering (K-Means)")
     st.write("Visualisasi pengelompokan (clustering) dari algoritma K-Means.")
 
-    df = load_data()
+    from utils.helpers import get_preprocessed_clustered_data
+    df = get_preprocessed_clustered_data()
     features = ["TBC_CDR", "TBC_SR", "AIDS", "Kusta", "Malaria", "DBD"]
-    
-    df['Tingkat Risiko'] = df['Cluster'].apply(get_cluster_label)
 
     # 1. PCA for 2D visualization
     pca = PCA(n_components=2)
@@ -177,7 +176,7 @@ def show():
     st.markdown("---")
 
     # 5. Evaluasi Kualitas Clustering (Silhouette Score & Elbow Method)
-    st.subheader("📈 Evaluasi Kualitas K-Means Clustering")
+    st.subheader("📈 Evaluasi Kualitas K-Means")
     
     # Calculate evaluation metrics
     model, scaler = load_model()

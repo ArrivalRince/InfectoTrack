@@ -50,20 +50,17 @@ def show_cluster_detail(risiko, df_cluster, df_all):
     st.info("💡 Daftar ini dikelompokkan berdasarkan kemiripan tingkat kasus penyakit.")
 
 def show():
+    from utils.helpers import get_preprocessed_clustered_data
     # Menangani state jika user mengklik provinsi dari dalam dialog Cluster
     if 'open_prov_detail' in st.session_state:
         prov_to_open = st.session_state.pop('open_prov_detail')
-        df_temp = load_data()
-        df_temp['Tingkat Risiko'] = df_temp['Cluster'].apply(get_cluster_label)
+        df_temp = get_preprocessed_clustered_data()
         show_province_detail(prov_to_open, df_temp)
 
     st.header("📊 Dashboard Persebaran Penyakit")
     st.write("Ringkasan distribusi provinsi berdasarkan risiko penyakit menular.")
 
-    df = load_data()
-    
-    # Map label for better readability
-    df['Tingkat Risiko'] = df['Cluster'].apply(get_cluster_label)
+    df = get_preprocessed_clustered_data()
 
     # Metrics dengan Button Dialog Interaktif
     col1, col2, col3, col4 = st.columns(4)
