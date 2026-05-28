@@ -35,9 +35,15 @@ def get_preprocessed_clustered_data():
         df = df[~df["Provinsi"].str.contains("Catatan", na=False, case=False)]
         df = df[~df["Provinsi"].str.contains("Kondisi", na=False, case=False)]
         
+    df = df.dropna(subset=['Provinsi'])
+    df = df.dropna(how='all')
+        
     df[features] = df[features].replace(["-", "–"], pd.NA)
     df[features] = df[features].apply(pd.to_numeric, errors='coerce')
-    df = df.dropna(subset=features).reset_index(drop=True)
+    
+    # Impute missing values with mean instead of dropping them
+    df[features] = df[features].fillna(df[features].mean())
+    df = df.reset_index(drop=True)
     
     # 2. Predict Clusters
     model, scaler = load_model()
