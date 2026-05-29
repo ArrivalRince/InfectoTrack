@@ -7,6 +7,7 @@ def show():
 
     st.header("EDA Data Mentah")
 
+
     
     # LOAD DATA
     
@@ -18,9 +19,37 @@ def show():
         "Disease by Province and Type of Disease, 2025.csv"
     )
 
+
+    # ================================
+    # UPLOAD DATASET
+    # ================================
+    st.subheader("📤 Upload Dataset")
+    st.write("Silakan upload dataset baru Anda dalam format CSV. Dataset ini akan digunakan di seluruh sistem (EDA, Preprocessing, dll).")
+    
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    file_path = os.path.join(base_path, "data", "dataset.csv")
+    
+    uploaded_file = st.file_uploader("Pilih file CSV", type=["csv"])
+    if uploaded_file is not None:
+        # Simpan file yang di-upload ke dataset.csv (agar tersinkron dengan halaman lain)
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        st.success("✅ Dataset berhasil di-upload dan disimpan sebagai dataset sistem.")
+        st.cache_data.clear()  # Bersihkan cache agar data loader mengambil data terbaru
+
+    # ================================
+    # LOAD DATA
+    # ================================
+
     if not os.path.exists(file_path):
-        st.error("File tidak ditemukan! Pastikan ada di folder /data")
-        return
+        # Coba fallback ke file default jika belum ada dataset.csv
+        file_path_default = os.path.join(base_path, "data", "Disease by Province and Type of Disease, 2025.csv")
+        if os.path.exists(file_path_default):
+            df = pd.read_csv(file_path_default)
+            df.to_csv(file_path, index=False) # jadikan dataset utama
+        else:
+            st.warning("⚠️ Belum ada dataset yang di-upload. Silakan upload dataset CSV terlebih dahulu.")
+            return
 
     df = pd.read_csv(file_path)
 
@@ -69,7 +98,40 @@ def show():
         "Missing mencakup NaN, None, simbol '–', dan '-'."
     )
 
+    # ================================
+    # RINGKASAN OUTLIER KESELURUHAN
+    # ================================
+    st.subheader("📌 Ringkasan Outlier Keseluruhan Data")
+    st.write("Tabel di bawah ini menunjukkan jumlah outlier yang terdeteksi pada setiap kolom numerik berdasarkan perhitungan batas atas dan batas bawah IQR (*Interquartile Range*).")
     
+    outlier_counts = []
+    for col in df.columns:
+        # Abaikan kolom string/label
+        if col not in ['Provinsi', 'Cluster', 'Unnamed: 0', 'index', 'id', 'ID']:
+            temp_num = pd.to_numeric(df[col], errors='coerce')
+            if not temp_num.isna().all():
+                Q1 = temp_num.quantile(0.25)
+                Q3 = temp_num.quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                
+                num_outliers = ((temp_num < lower_bound) | (temp_num > upper_bound)).sum()
+                outlier_counts.append({"Kolom (Indikator)": col, "Jumlah Outlier": num_outliers})
+                
+    if outlier_counts:
+        df_outliers_summary = pd.DataFrame(outlier_counts)
+        st.dataframe(df_outliers_summary, use_container_width=True)
+        total_outliers = df_outliers_summary["Jumlah Outlier"].sum()
+        if total_outliers > 0:
+            st.info(f"Terdapat total **{total_outliers}** nilai outlier di seluruh dataset.")
+        else:
+            st.success("Tidak ada nilai outlier yang terdeteksi di seluruh kolom numerik.")
+    else:
+        st.warning("Tidak ada kolom numerik yang valid untuk dianalisis outlier-nya.")
+
+
+
     # PILIH KOLOM
     
     st.subheader("Visualisasi Data")

@@ -19,3 +19,36 @@ def get_cluster_label(cluster_id):
         2: "Tinggi"
     }
     return mapping.get(cluster_id, "Unknown")
+
+@st.cache_data
+def get_preprocessed_clustered_data():
+    from utils.data_loader import load_data
+    import pandas as pd
+    
+    df = load_data()
+    features = ["TBC_CDR", "TBC_SR", "AIDS", "Kusta", "Malaria", "DBD"]
+    
+    # 1. Cleaning
+    if "Provinsi" in df.columns:
+        invalid_rows = ["Catatan", "Indonesia", "Kondisi", "Kondisi Luar Biasa", "Total", "Nasional"]
+        df = df[~df["Provinsi"].isin(invalid_rows)]
+        df = df[~df["Provinsi"].str.contains("Catatan", na=False, case=False)]
+        df = df[~df["Provinsi"].str.contains("Kondisi", na=False, case=False)]
+        
+    df = df.dropna(subset=['Provinsi'])
+    df = df.dropna(how='all')
+        
+    df[features] = df[features].replace(["-", "–"], pd.NA)
+    df[features] = df[features].apply(pd.to_numeric, errors='coerce')
+    
+    # Impute missing values with mean instead of dropping them
+    df[features] = df[features].fillna(df[features].mean())
+    df = df.reset_index(drop=True)
+    
+    # 2. Predict Clusters
+    model, scaler = load_model()
+    X_scaled = scaler.transform(df[features])
+    df['Cluster'] = model.predict(X_scaled)
+    df['Tingkat Risiko'] = df['Cluster'].apply(get_cluster_label)
+    
+    return df
