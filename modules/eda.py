@@ -5,7 +5,20 @@ import os
 
 def show():
 
-    st.header("📊 EDA Data Mentah (Tanpa Cleaning)")
+    st.header("EDA Data Mentah")
+
+
+    
+    # LOAD DATA
+    
+    base_path = os.path.dirname(os.path.dirname(__file__))
+
+    file_path = os.path.join(
+        base_path,
+        "data",
+        "Disease by Province and Type of Disease, 2025.csv"
+    )
+
 
     # ================================
     # UPLOAD DATASET
@@ -27,6 +40,7 @@ def show():
     # ================================
     # LOAD DATA
     # ================================
+
     if not os.path.exists(file_path):
         # Coba fallback ke file default jika belum ada dataset.csv
         file_path_default = os.path.join(base_path, "data", "Disease by Province and Type of Disease, 2025.csv")
@@ -39,27 +53,25 @@ def show():
 
     df = pd.read_csv(file_path)
 
-    # ================================
+    
     # DATA RAW
-    # ================================
-    st.subheader("📌 Data Mentah (Raw)")
+    
+    st.subheader("Data Mentah (Raw)")
     st.dataframe(df)
 
-    # ================================
+    
     # INFORMASI DATASET
-    # ================================
-    st.subheader("📌 Informasi Dataset")
+    
+    st.subheader("Informasi Dataset")
 
     st.write("Jumlah baris:", df.shape[0])
     st.write("Jumlah kolom:", df.shape[1])
 
-    st.write("Tipe data:")
-    st.write(df.dtypes)
 
-    # ================================
+    
     # DETEKSI MISSING VALUE
-    # ================================
-    st.subheader("📌 Deteksi Missing Value")
+    
+    st.subheader("Deteksi Missing Value")
 
     missing_real = df.isna().sum()
 
@@ -118,28 +130,29 @@ def show():
     else:
         st.warning("Tidak ada kolom numerik yang valid untuk dianalisis outlier-nya.")
 
-    # ================================
+
+
     # PILIH KOLOM
-    # ================================
-    st.subheader("📌 Visualisasi Data")
+    
+    st.subheader("Visualisasi Data")
 
     selected_col = st.selectbox(
         "Pilih Kolom",
         df.columns
     )
 
-    # ================================
+    
     # KONVERSI SEMENTARA
-    # ================================
+    
     numeric_data = pd.to_numeric(
         df[selected_col],
         errors='coerce'
     )
 
-    # ================================
+    
     # HISTOGRAM
-    # ================================
-    st.subheader("📊 Histogram Distribusi Data")
+    
+    st.subheader("Histogram Distribusi Data")
 
     try:
 
@@ -161,10 +174,10 @@ def show():
     except:
         st.error("Kolom tidak dapat divisualisasikan.")
 
-    # ================================
+    
     # DETEKSI OUTLIER
-    # ================================
-    st.subheader("🚨 Visualisasi Outlier")
+   
+    st.subheader("Visualisasi Outlier")
 
     try:
 
@@ -220,10 +233,10 @@ def show():
             use_container_width=True
         )
 
-        # ================================
+      
         # TABEL OUTLIER
-        # ================================
-        st.subheader("📌 Data Outlier")
+      
+        st.subheader("Data Outlier")
 
         outlier_only = df_outlier[
             df_outlier["Kategori"] == "Outlier"
@@ -254,7 +267,7 @@ def show():
             "Kolom tidak dapat dianalisis."
         )
 
-    st.subheader("📌 Catatan")
+    st.subheader("Catatan")
 
     st.markdown("""
     ⚠️ Dataset masih dalam kondisi mentah
