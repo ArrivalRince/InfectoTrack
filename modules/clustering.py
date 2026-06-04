@@ -17,9 +17,11 @@ def show():
     df = get_preprocessed_clustered_data()
     features = ["TBC_CDR", "TBC_SR", "AIDS", "Kusta", "Malaria", "DBD"]
 
-    # 1. PCA for 2D visualization
+    # 1. PCA for 2D visualization (using scaled features to avoid scale dominance and outlier crowding)
+    model, scaler = load_model()
+    X_scaled = scaler.transform(df[features])
     pca = PCA(n_components=2)
-    pca_features = pca.fit_transform(df[features])
+    pca_features = pca.fit_transform(X_scaled)
     df['PCA1'] = pca_features[:, 0]
     df['PCA2'] = pca_features[:, 1]
 
