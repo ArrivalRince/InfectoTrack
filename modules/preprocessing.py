@@ -45,8 +45,8 @@ def show():
         df_clean = df_clean[~df_clean["Provinsi"].str.contains("Catatan", na=False, case=False)]
         df_clean = df_clean[~df_clean["Provinsi"].str.contains("Kondisi", na=False, case=False)]
 
-    st.write("**Dataset setelah Data Cleaning:**")
-    st.dataframe(df_clean, use_container_width=True)
+    with st.expander("Lihat Dataset Setelah Cleaning"):
+        st.dataframe(df_clean, use_container_width=True)
 
     # ==========================
     # 2. FEATURE SELECTION
@@ -84,13 +84,14 @@ def show():
         if available_features:
             features = features[available_features]
             
-        col_lbl, col_feat = st.columns([1, 2])
-        with col_lbl:
-            st.write("**Label (Provinsi):**")
-            st.dataframe(labels, use_container_width=True)
-        with col_feat:
-            st.write("**Fitur Numerik:**")
-            st.dataframe(features, use_container_width=True)
+        with st.expander("Lihat Detail Seleksi Fitur"):
+            col_lbl, col_feat = st.columns([1, 2])
+            with col_lbl:
+                st.write("**Label (Provinsi):**")
+                st.dataframe(labels, use_container_width=True)
+            with col_feat:
+                st.write("**Fitur Numerik:**")
+                st.dataframe(features, use_container_width=True)
     else:
         st.warning("Kolom 'Provinsi' tidak ditemukan. Pastikan data mentah memiliki kolom tersebut.")
         features = df_clean.copy()
@@ -142,25 +143,29 @@ def show():
     st.write("Melakukan standardisasi pada data agar memiliki rata-rata ($\mu$) = 0 dan standar deviasi ($\sigma$) = 1.")
     st.latex(r"z = \frac{x - \mu}{\sigma}")
     
-    st.write("**Data sebelum scaling:**")
-    st.dataframe(features_imputed.head(), use_container_width=True)
-    
     # Apply Standard Scaler
     scaler = StandardScaler()
     features_scaled_array = scaler.fit_transform(features_imputed)
     features_scaled = pd.DataFrame(features_scaled_array, columns=features_imputed.columns)
-    
-    st.write("**Data sesudah scaling:**")
-    st.dataframe(features_scaled.head(), use_container_width=True)
-    
-    st.write("**Statistik hasil scaling (Cek Mean mendekati 0 dan Std mendekati 1):**")
-    stat_mean = features_scaled.mean().round(4)
-    stat_std = features_scaled.std().round(4)
-    df_stats = pd.DataFrame({
-        "Mean (μ)": stat_mean,
-        "Std Dev (σ)": stat_std
-    })
-    st.dataframe(df_stats, use_container_width=True)
+
+    with st.expander("Lihat Detail Standarisasi"):
+        col_bf, col_af = st.columns(2)
+        with col_bf:
+            st.write("**Data sebelum scaling:**")
+            st.dataframe(features_imputed.head(), use_container_width=True)
+            
+        with col_af:
+            st.write("**Data sesudah scaling:**")
+            st.dataframe(features_scaled.head(), use_container_width=True)
+            
+        st.write("**Statistik hasil scaling (Cek Mean mendekati 0 dan Std mendekati 1):**")
+        stat_mean = features_scaled.mean().round(4)
+        stat_std = features_scaled.std().round(4)
+        df_stats = pd.DataFrame({
+            "Mean (μ)": stat_mean,
+            "Std Dev (σ)": stat_std
+        })
+        st.dataframe(df_stats, use_container_width=True)
 
     # ==========================
     # 6. VISUALISASI DATA (APEXCHARTS)
@@ -283,21 +288,4 @@ def show():
     st.write("**Tabel Dataset Final:**")
     st.dataframe(final_df, use_container_width=True)
 
-    # ==========================
-    # 8. TOMBOL ACTION
-    # ==========================
-    st.markdown("---")
-    col_btn1, col_btn2 = st.columns(2)
-    
-    with col_btn1:
-        if st.button("💾 Simpan Hasil Preprocessing", use_container_width=True):
-            # Define output directory and save the dataframe
-            output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-            os.makedirs(output_dir, exist_ok=True)
-            output_path = os.path.join(output_dir, "dataset_preprocessed.csv")
-            final_df.to_csv(output_path, index=False)
-            st.success(f"Data berhasil disimpan di: `{output_path}`")
-            
-    with col_btn2:
-        if st.button("🚀 Lanjut ke Clustering", use_container_width=True):
-            st.info("Pindah ke halaman Clustering dari sidebar untuk melanjutkan proses!")
+
