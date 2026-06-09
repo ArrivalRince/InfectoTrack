@@ -579,21 +579,217 @@ def show_methodology_panel():
         - Outlier detection dilakukan pada preprocessing stage
         """)
     
+
+def show_year_comparison():
+    st.subheader("🔄 Perbandingan Perkembangan Risiko Antar Tahun")
+    st.write("Bandingkan klaster risiko dan perkembangan indikator penyakit menular dari tahun ke tahun.")
+    
+    from utils.data_loader import get_available_years
+    from utils.helpers import get_preprocessed_clustered_data
+    
+    years = get_available_years()
+    if len(years) < 2:
+        st.info("💡 Unggah dataset baru untuk tahun yang berbeda di halaman **EDA** untuk melihat perbandingan antar tahun.")
+        return
+        
+    # Kumpulkan data dari seluruh tahun yang tersedia
+    prov_risk_matrix = []
+    for y in years:
+        df_y = get_preprocessed_clustered_data(y)
+        for _, row in df_y.iterrows():
+            prov_risk_matrix.append({
+                'Provinsi': row['Provinsi'],
+                'Tahun': str(y),
+                'Tingkat Risiko': row['Tingkat Risiko']
+            })
+            
+    df_matrix = pd.DataFrame(prov_risk_matrix)
+    risk_rank = {"Rendah": 0, "Sedang": 1, "Tinggi": 2}
+    
+    # =====================================================================
+    # 1. TREN INDEKS RISIKO NASIONAL (GRAFIK GARIS TUNGGAL)
+    # =====================================================================
+    st.markdown("### 📈 Tren Indeks Risiko Nasional (Semua Tahun)")
+    st.write("Indeks Risiko Nasional dihitung berdasarkan rata-rata tingkat risiko seluruh provinsi (Rendah = 0, Sedang = 1, Tinggi = 2). Kenaikan menunjukkan peningkatan risiko nasional secara keseluruhan.")
+    
+    national_trends = []
+    for y in years:
+        df_y = get_preprocessed_clustered_data(y)
+        total_weight = df_y['Tingkat Risiko'].map(risk_rank).sum()
+        avg_risk = total_weight / len(df_y) if len(df_y) > 0 else 0
+        national_trends.append({
+            'Tahun': str(y),
+            'Indeks Risiko': round(avg_risk, 3)
+        })
+        
+    df_national_trend = pd.DataFrame(national_trends)
+    
+    fig_national = px.line(
+        df_national_trend,
+        x='Tahun',
+        y='Indeks Risiko',
+        markers=True,
+        title='Tren Indeks Risiko Kesehatan Nasional (Tahun ke Tahun)',
+        template="plotly_dark"
+    )
+    fig_national.update_traces(line=dict(width=3, color='#EF553B'), marker=dict(size=8))
+    fig_national.update_layout(
+        yaxis=dict(range=[-0.1, 2.1])
+    )
+    st.plotly_chart(fig_national, use_container_width=True)
+    
     st.markdown("---")
+    
+    # =====================================================================
+    # 2. TREN RISIKO PER PROVINSI (GRAFIK GARIS TUNGGAL)
+    # =====================================================================
+    st.markdown("### 📌 Tren Perkembangan Risiko per Provinsi (Semua Tahun)")
+    st.write("Pilih provinsi untuk melihat perkembangan tingkat risiko dari tahun ke tahun secara spesifik.")
+    
+    all_provinces = sorted(list(df_matrix['Provinsi'].unique()))
+    selected_prov = st.selectbox("Pilih Provinsi:", all_provinces, key="prov_trend_selectbox")
+    
+    df_prov = df_matrix[df_matrix['Provinsi'] == selected_prov].copy()
+    df_prov['Bobot Risiko'] = df_prov['Tingkat Risiko'].map(risk_rank)
+    df_prov = df_prov.sort_values('Tahun')
+    
+    # Render line chart for selected province
+    fig_prov = px.line(
+        df_prov,
+        x='Tahun',
+        y='Bobot Risiko',
+        markers=True,
+        title=f'Tren Perkembangan Risiko Provinsi: {selected_prov}',
+        template="plotly_dark"
+    )
+    # Color based on latest risk status
+    latest_status = df_prov['Tingkat Risiko'].iloc[-1]
+    color_line = COLOR_MAP.get(latest_status, '#FFA15A')
+    
+    fig_prov.update_traces(line=dict(width=3, color=color_line), marker=dict(size=8))
+    fig_prov.update_layout(
+        yaxis=dict(
+            tickmode='array',
+            tickvals=[0, 1, 2],
+            ticktext=['Rendah 🟢', 'Sedang 🟠', 'Tinggi 🔴'],
+            range=[-0.2, 2.2]
+        )
+    )
+    st.plotly_chart(fig_prov, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # =====================================================================
+    # 3. MATRIKS REKAM JEJAK RISIKO PROVINSI (SEMUA TAHUN)
+    # =====================================================================
+    st.markdown("### 🗺️ Matriks Perkembangan Risiko Provinsi")
+    st.write("Tabel rekam jejak tingkat risiko untuk seluruh provinsi pada semua tahun data yang tersedia.")
+    
+    if not df_matrix.empty:
+        df_pivot = df_matrix.pivot(index='Provinsi', columns='Tahun', values='Tingkat Risiko')
+        df_pivot = df_pivot.sort_index()
+        
+        # Fungsi styling warna sel
+        def style_risk_cell(val):
+            if val == 'Rendah':
+                return 'background-color: rgba(0, 204, 150, 0.2); color: #00CC96; font-weight: bold; text-align: center;'
+            elif val == 'Sedang':
+                return 'background-color: rgba(255, 161, 90, 0.2); color: #FFA15A; font-weight: bold; text-align: center;'
+            elif val == 'Tinggi':
+                return 'background-color: rgba(239, 85, 59, 0.2); color: #EF553B; font-weight: bold; text-align: center;'
+            return 'text-align: center; color: gray;'
+
+        styled_pivot = df_pivot.style.map(style_risk_cell)
+        st.dataframe(styled_pivot, use_container_width=True, height=500)
+    
+    st.markdown("---")
+    
+    # =====================================================================
+    # 4. ANALISIS DETAIL PERGESERAN DUA TAHUN
+    # =====================================================================
+    st.markdown("### 🔍 Analisis Pergeseran Detail (Dua Tahun)")
+    st.write("Bandingkan pergeseran status risiko secara spesifik antara dua tahun pilihan.")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        year_base = st.selectbox("Pilih Tahun Awal (Basis):", options=years[:-1], index=0)
+    with col2:
+        compare_options = [y for y in years if y > year_base]
+        year_compare = st.selectbox("Pilih Tahun Pembanding:", options=compare_options, index=0)
+        
+    df_base = get_preprocessed_clustered_data(year_base)
+    df_compare = get_preprocessed_clustered_data(year_compare)
+    
+    # Merge on Province
+    df_merged = pd.merge(
+        df_base[['Provinsi', 'Tingkat Risiko', 'Cluster']], 
+        df_compare[['Provinsi', 'Tingkat Risiko', 'Cluster']], 
+        on='Provinsi', 
+        suffixes=(f'_{year_base}', f'_{year_compare}')
+    )
+    
+    def get_status_change(row):
+        r_base = risk_rank.get(row[f'Tingkat Risiko_{year_base}'], 0)
+        r_comp = risk_rank.get(row[f'Tingkat Risiko_{year_compare}'], 0)
+        if r_comp > r_base:
+            return "🔴 Meningkat (Memburuk)"
+        elif r_comp < r_base:
+            return "🟢 Menurun (Membaik)"
+        else:
+            return "⚪ Tetap"
+            
+    df_merged['Perubahan Status'] = df_merged.apply(get_status_change, axis=1)
+    
+    # Visual Metrics
+    counts = df_merged['Perubahan Status'].value_counts()
+    c_worse = counts.get("🔴 Meningkat (Memburuk)", 0)
+    c_better = counts.get("🟢 Menurun (Membaik)", 0)
+    c_same = counts.get("⚪ Tetap", 0)
+    
+    col_m1, col_m2, col_m3 = st.columns(3)
+    col_m1.metric("🟢 Provinsi Membaik", c_better)
+    col_m2.metric("🔴 Provinsi Memburuk", c_worse)
+    col_m3.metric("⚪ Provinsi Tetap", c_same)
+    
+    def color_change(val):
+        if "Meningkat" in val:
+            return 'background-color: rgba(239, 85, 59, 0.2); color: #EF553B; font-weight: bold; text-align: center;'
+        elif "Menurun" in val:
+            return 'background-color: rgba(0, 204, 150, 0.2); color: #00CC96; font-weight: bold; text-align: center;'
+        return 'color: gray; text-align: center;'
+        
+    styled_merged = df_merged[['Provinsi', f'Tingkat Risiko_{year_base}', f'Tingkat Risiko_{year_compare}', 'Perubahan Status']].style.map(
+        color_change, subset=['Perubahan Status']
+    )
+    st.dataframe(styled_merged, use_container_width=True, height=400)
+    
+st.markdown("---")
 
 def show():
     from utils.helpers import get_preprocessed_clustered_data
+    selected_year = st.session_state.get('selected_year', 2025)
     
     # Handle state for province detail dialog
     if 'open_prov_detail' in st.session_state:
         prov_to_open = st.session_state.pop('open_prov_detail')
-        df_temp = get_preprocessed_clustered_data()
+        df_temp = get_preprocessed_clustered_data(selected_year)
         show_province_detail(prov_to_open, df_temp)
 
     st.header("📊 Dashboard Persebaran Penyakit")
     st.write("Dashboard informatif dan eksplanatoris untuk analisis risiko penyakit menular di seluruh Indonesia.")
 
-    df = get_preprocessed_clustered_data()
+    dashboard_mode = st.radio(
+        "Pilih Mode Analisis:",
+        ["📊 Analisis Tahun Aktif", "🔄 Perbandingan Antar Tahun"],
+        horizontal=True
+    )
+    st.markdown("---")
+    
+    if dashboard_mode == "🔄 Perbandingan Antar Tahun":
+        show_year_comparison()
+        return
+
+    df = get_preprocessed_clustered_data(selected_year)
     
     # ===== SECTION 1: KEY INSIGHTS =====
     show_key_insights(df)

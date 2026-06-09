@@ -13,12 +13,13 @@ def show():
     st.header("🔵 Analisis Clustering (K-Means)")
     st.write("Visualisasi pengelompokan (clustering) dari algoritma K-Means.")
 
+    selected_year = st.session_state.get('selected_year', 2025)
     from utils.helpers import get_preprocessed_clustered_data
-    df = get_preprocessed_clustered_data()
+    df = get_preprocessed_clustered_data(selected_year)
     features = ["TBC_CDR", "TBC_SR", "AIDS", "Kusta", "Malaria", "DBD"]
 
     # 1. PCA for 2D visualization (using scaled features to avoid scale dominance and outlier crowding)
-    model, scaler = load_model()
+    model, scaler = load_model(selected_year)
     X_scaled = scaler.transform(df[features])
     pca = PCA(n_components=2)
     pca_features = pca.fit_transform(X_scaled)
@@ -181,7 +182,7 @@ def show():
     st.subheader("📈 Evaluasi Kualitas K-Means")
     
     # Calculate evaluation metrics
-    model, scaler = load_model()
+    model, scaler = load_model(selected_year)
     X_scaled = scaler.transform(df[features])
     
     sil_score = silhouette_score(X_scaled, df['Cluster'])

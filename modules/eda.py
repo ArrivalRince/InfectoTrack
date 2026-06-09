@@ -10,31 +10,129 @@ def show():
     # ================================
     # UPLOAD DATASET
     # ================================
-    st.subheader("📤 Upload Dataset")
-    st.write("Silakan upload dataset baru Anda dalam format CSV. Dataset ini akan digunakan di seluruh sistem (EDA, Preprocessing, dll).")
+    st.subheader("📤 Upload Dataset Baru")
+    st.write("Silakan upload dataset baru Anda dalam format CSV. Anda dapat menentukan tahun data untuk diolah secara otomatis oleh sistem.")
     
     base_path = os.path.dirname(os.path.dirname(__file__))
-    file_path = os.path.join(base_path, "data", "dataset.csv")
     
-    uploaded_file = st.file_uploader("Pilih file CSV", type=["csv"])
+    col_up1, col_up2 = st.columns([2, 1])
+    with col_up2:
+        upload_year = st.number_input(
+            "Tahun Data yang Di-upload:",
+            min_value=2000,
+            max_value=2100,
+            value=st.session_state.get('selected_year', 2026),
+            step=1
+        )
+    with col_up1:
+        uploaded_file = st.file_uploader("Pilih file CSV", type=["csv"], key=f"uploader_{upload_year}")
+        
     if uploaded_file is not None:
-        # Simpan file yang di-upload ke dataset.csv (agar tersinkron dengan halaman lain)
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.success("✅ Dataset berhasil di-upload dan disimpan sebagai dataset sistem.")
-        st.cache_data.clear()  # Bersihkan cache agar data loader mengambil data terbaru
+        try:
+            # Baca file upload ke pandas untuk divalidasi
+            df_uploaded = pd.read_csv(uploaded_file)
+            from utils.data_loader import standardize_columns, check_compatibility
+            df_std = standardize_columns(df_uploaded)
+            
+            if not check_compatibility(df_std):
+                required_features = ["TBC_CDR", "TBC_SR", "AIDS", "Kusta", "Malaria", "DBD"]
+                missing = [f for f in required_features if f not in df_std.columns]
+                st.error(f"❌ Validasi Gagal! Dataset tidak memiliki kolom yang sesuai dengan kebutuhan sistem.")
+                st.info(f"**Indikator yang hilang:** {', '.join(missing)}\n\n"
+                        f"Pastikan nama kolom pada CSV mengandung kata kunci seperti: "
+                        f"'CDR'/'Penemuan TBC', 'SR'/'Keberhasilan Pengobatan', 'AIDS'/'HIV', 'Kusta', 'Malaria', 'DBD'/'Dengue'.")
+            else:
+                st.success("✅ File valid! Siap untuk disimpan.")
+                
+                # Tampilkan pratinjau dataset
+                st.write("**Pratinjau Data (5 Baris Pertama):**")
+                st.dataframe(df_uploaded.head(5), use_container_width=True)
+                
+                # Tombol konfirmasi untuk menyimpan
+                if st.button("💾 Simpan Dataset Baru", type="primary", use_container_width=True):
+                    # Simpan berkas jika valid dan tombol ditekan
+                    file_path = os.path.join(base_path, "data", f"dataset_{upload_year}.csv")
+                    df_uploaded.to_csv(file_path, index=False)
+                    st.success(f"✅ Dataset berhasil disimpan sebagai data tahun {upload_year}.")
+                    st.session_state['selected_year'] = upload_year
+                    st.cache_data.clear()  # Bersihkan cache agar data loader mengambil data terbaru
+                    st.rerun()
+        except Exception as e:
+            st.error(f"❌ Terjadi kesalahan saat membaca file: {str(e)}")
+
+    # ================================
+    # KELOLA & HAPUS DATASET
+    # ================================
+    st.markdown("---")
+    st.subheader("🗑️ Kelola & Hapus Dataset")
+    st.write("Hapus dataset tahunan yang sudah tidak diperlukan dari sistem.")
+    
+    from utils.data_loader import get_available_years
+    available_years_to_delete = get_available_years(only_compatible=False)
+    
+    if len(available_years_to_delete) <= 1:
+        st.warning("⚠️ Hanya terdapat 1 dataset di sistem. Penghapusan tidak diizinkan demi menjaga kestabilan aplikasi.")
+    else:
+        col_del1, col_del2 = st.columns([2, 1])
+        with col_del1:
+            delete_year = st.selectbox(
+                "Pilih Tahun Dataset yang Ingin Dihapus:",
+                options=available_years_to_delete,
+                key="delete_year_select"
+            )
+        with col_del2:
+            st.write("") # Spacer
+            st.write("") # Spacer
+            confirm_delete = st.button("🗑️ Hapus Dataset", type="secondary", use_container_width=True)
+            
+        if confirm_delete:
+            st.session_state['confirm_delete_year'] = delete_year
+            st.rerun()
+            
+    if 'confirm_delete_year' in st.session_state:
+        del_yr = st.session_state['confirm_delete_year']
+        
+        st.warning(f"⚠️ Apakah Anda yakin ingin menghapus dataset tahun **{del_yr}**? Tindakan ini tidak dapat dibatalkan.")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            if st.button("Ya, Hapus", type="primary", use_container_width=True):
+                file_to_delete = os.path.join(base_path, "data", f"dataset_{del_yr}.csv")
+                if os.path.exists(file_to_delete):
+                    os.remove(file_to_delete)
+                    st.success(f"✅ Dataset tahun {del_yr} berhasil dihapus.")
+                else:
+                    st.error(f"❌ File dataset_{del_yr}.csv tidak ditemukan.")
+                
+                # Update selected_year if the deleted one was selected
+                remaining_years = [y for y in available_years_to_delete if y != del_yr]
+                if remaining_years:
+                    new_active_year = remaining_years[0]
+                    if st.session_state.get('selected_year') == del_yr:
+                        st.session_state['selected_year'] = new_active_year
+                
+                st.session_state.pop('confirm_delete_year', None)
+                st.cache_data.clear()
+                st.rerun()
+                
+        with col_c2:
+            if st.button("Batal", use_container_width=True):
+                st.session_state.pop('confirm_delete_year', None)
+                st.rerun()
 
     # ================================
     # LOAD DATA
     # ================================
+    selected_year = st.session_state.get('selected_year', 2025)
+    file_path = os.path.join(base_path, "data", f"dataset_{selected_year}.csv")
+    
     if not os.path.exists(file_path):
-        # Coba fallback ke file default jika belum ada dataset.csv
+        # Coba fallback ke file default jika belum ada dataset untuk tahun terpilih
         file_path_default = os.path.join(base_path, "data", "Disease by Province and Type of Disease, 2025.csv")
         if os.path.exists(file_path_default):
             df = pd.read_csv(file_path_default)
-            df.to_csv(file_path, index=False) # jadikan dataset utama
+            df.to_csv(file_path, index=False) # jadikan dataset utama tahun terpilih
         else:
-            st.warning("⚠️ Belum ada dataset yang di-upload. Silakan upload dataset CSV terlebih dahulu.")
+            st.warning(f"⚠️ Belum ada dataset untuk tahun {selected_year}. Silakan upload dataset CSV terlebih dahulu.")
             return
 
     df = pd.read_csv(file_path)

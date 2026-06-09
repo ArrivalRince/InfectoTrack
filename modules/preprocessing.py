@@ -12,7 +12,8 @@ def show():
     st.markdown("---")
 
     # Load raw data
-    df_raw = load_data()
+    selected_year = st.session_state.get('selected_year', 2025)
+    df_raw = load_data(selected_year)
 
     # ==========================
     # 1. SECTION PREVIEW & CLEANING
